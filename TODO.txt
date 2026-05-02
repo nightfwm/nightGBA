@@ -1,0 +1,4 @@
+- Add Multiboot header (might not be necessary)
+- Create CPU struct
+- F/D/E first set of instructions
+- Emulate PPU

@@ -23,12 +23,9 @@ pub const CartridgeHeader = struct {
     //     std.debug.assert(@sizeOf(CartridgeHeader) == 0xC0);
     // }
 
-    pub fn read(reader: *std.Io.Reader) !CartridgeHeader {
-        const bytes = try reader.takeArray(@sizeOf(CartridgeHeader));
-        var header: CartridgeHeader = undefined;
-        @memcpy(std.mem.asBytes(&header), bytes);
-
-        return header;
+    pub fn read(data: []const u8) !*const CartridgeHeader {
+        if (data.len < @sizeOf(CartridgeHeader)) return error.RomTooSmall;
+        return @ptrCast(@alignCast(data.ptr));
     }
 
     fn titleSlice(self: *const CartridgeHeader) []const u8 {
@@ -41,12 +38,16 @@ pub const CartridgeHeader = struct {
         return &self.game_code;
     }
 
-    fn complementCheck(self: *const CartridgeHeader) u8 {
+    fn complementCheck(self: *const CartridgeHeader) bool {
         const raw_bytes = std.mem.asBytes(self);
+        std.debug.print("{any}\n", .{raw_bytes});
+        const actual = raw_bytes[0xBD];
         var chk: u8 = 0;
 
         for (raw_bytes[0xA0..0xBD]) |b| chk -%= b;
-        return chk -% 0x19;
+        const calc = chk -% 0x19;
+
+        return calc == actual;
     }
 
     pub fn dump(self: *const CartridgeHeader) !void {
@@ -56,7 +57,7 @@ pub const CartridgeHeader = struct {
             \\  Game Code:        {s}
             \\  Maker Code:       {s}
             \\  Version:          0x{X:0>2}
-            \\  Complement Check: 0x{X:0>2} (calc: 0x{X:0>2})
+            \\  Complement Check: 0x{X:0>2} ({s})
             \\  Fixed Value:      0x{X:0>2} ({s})
             \\------------------
             \\
@@ -66,9 +67,9 @@ pub const CartridgeHeader = struct {
             self.maker_code,
             self.version,
             self.checksum,
-            self.complementCheck(),
+            if (self.complementCheck()) "VALID" else "INVALID",
             self.fixed_value,
-            if (self.fixed_value == 0x96) "OK" else "INVALID",
+            if (self.fixed_value == 0x96) "VALID" else "INVALID",
         });
     }
 };
